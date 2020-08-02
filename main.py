@@ -9,10 +9,13 @@ O bot utiliza classes da biblioteca python-telegram-bot para envio e manipulaç�
 Primeiro, algumas funções do manipulador são definidas. Em seguida, essas funções são passadas para
 expedidor e registrado em seus respectivos locais.
 Em seguida, o bot é iniciado e executado até pressionar Ctrl-C na linha de comando.
-Uso:
+Uso:pi
 Basicamente o bot direciona o usuário para os valores de acordo com o que deseja.
 Pressiona Ctrl-C para finalizar o processo do BOT.
 """
+#framework web
+from flask import Flask
+app = Flask(__name__)
 import telegram, json
 from Conf.settings import TELEGRAM_TOKEN,EUROP_ASSISTANCE, REALIZA_ASSISTANCE
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove
@@ -27,6 +30,13 @@ logger = logging.getLogger(__name__)
 # context. Error handlers also receive the raised TelegramError object in error.
 
 #Iniciando a iteração com o comando /start
+@app.route('/')
+def hello():
+    """Return a friendly HTTP greeting."""
+    site = 'Bem vindo ao Bot Carrefour Seguros'
+    main()
+    return site
+
 def start(update, context):
     #Limita as opções de escolha para o usuário
     reply_keyboard = [['Carro', 'Moto']]
@@ -46,8 +56,7 @@ def veiculo(update, context):
     Veiculo = update.message.text
 
     #Salva a infomação para uso externo
-    key = 'veiculo'
-    context.user_data[key] = Veiculo
+    context.user_data['veiculo'] = Veiculo
 
     #Se usuário escolher Moto, pergunte quantas cilindradas tem o veículo
     if Veiculo == 'Moto':
@@ -56,9 +65,9 @@ def veiculo(update, context):
                                   reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
                                   parse_mode=telegram.ParseMode.HTML)
     else:
-        reply_keyboard = [['2020', '2019', '2018','2017','2016','2015 ou anterior']]
+        reply_keyboard = [['2020', '2019', '2018','2017','2016','2015']]
         update.message.reply_text(
-            'Maravilha! Por favor, me informe o ano de fabricação do(a) seu(ua) <b>'+Veiculo+'</b>',
+            'Maravilha! Por favor, informe o ano de fabricação do seu <b>'+Veiculo+'</b>',
                 reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
                 parse_mode=telegram.ParseMode.HTML)
 
@@ -66,24 +75,22 @@ def veiculo(update, context):
 def moto(update, context):
     # Salvando as cilindradas para uso externo
     Cilindradas = update.message.text
-    key = 'moto'
-    context.user_data[key] = Cilindradas
+    context.user_data['cilindradas'] = Cilindradas
 
     #Retorna o veículo escolhido na função anterior
     Veiculo = context.user_data['veiculo']
 
     #Solicita o ano de fabricação ao usuário
-    reply_keyboard = [['2020', '2019', '2018', '2017', '2016', '2015 ou anterior']]
+    reply_keyboard = [['2020', '2019', '2018', '2017', '2016', '2015']]
     update.message.reply_text('Maravilha...! Por favor, me informe o ano de fabricação da sua <b>'+ Veiculo+'</b>',
                                 reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True),
                                 parse_mode=telegram.ParseMode.HTML)
 
 #4° Iteração, coleta os dados informados, exporta  para arquivo JSON e envia as opções de compra
-def Dados(update, context):
+def Opcoes(update, context):
     # Salvando o ano do veículo para uso externo
     AnoVeiculo = update.message.text
-    key = 'ano'
-    context.user_data[key] = AnoVeiculo
+    context.user_data['ano'] = AnoVeiculo
 
     # Retorna o usuário loggado no telegram
     user = update.message.from_user
@@ -91,12 +98,17 @@ def Dados(update, context):
     Veiculo = context.user_data['veiculo']
 
     #Envia opções de seguros ao usuário
+    if Veiculo == 'moto':
+        msg = 'temos as seguintes opções para o seu'
+    else:
+        msg = 'temos as seguintes opções para a sua'
+
     update.message.reply_text(
-        'Muito bem Sr(a). <b>'+user.first_name+'</b>, temos as seguintes opções para o(a) seu(ua)'
+        'Muito bem Sr(a). <b>'+user.first_name+'</b>,'+msg+' '
         '<b>'+Veiculo+'</b>, ano <b>'+AnoVeiculo+'</b>:',parse_mode=telegram.ParseMode.HTML)
 
 
-    #Nesse trecho deveríamos  personalizar os valores de acordo com as opções escolhidas pelo usuário
+    #Nesse trecho deveríamos  personalizar os valores de acordo com o filtro do usuário
     #Se veiculo = Carro, Busca tabela carro, onde ano = AnoVeiculo  select preços e condições
     #Senão busca tabela Moto,  onde cilindradas = cilindradas e ano = Anoveiculo, select preços e condições
     # Porém, ficará para próxima versão do programa.
@@ -121,6 +133,7 @@ def operadora(update, context):
     context.user_data[key] = Operadora
     #Mensagem Finaliza
     update.message.reply_text('Parabéns! Fez uma excelente escolha')
+    Exportar()
 
 
 #Iteração Auxiliar: O cliente deseja cancelar
@@ -155,6 +168,7 @@ def main():
     # Create the Updater and pass it your bot's token.
     # Make sure to set use_context=True to use the new context based callbacks
     # Post version 12 this will no longer be necessary
+
     updater = Updater(TELEGRAM_TOKEN, use_context=True)
 
     # Get the dispatcher to register handlers
@@ -166,7 +180,7 @@ def main():
     dp.add_handler(CommandHandler('cancelar', cancelar))
     dp.add_handler(MessageHandler(Filters.regex('^(Carro|Moto)$'), veiculo))
     dp.add_handler(MessageHandler(Filters.regex('^(Até 125 Cilindradas|De 126 a 250 Cilindradas)$'), moto))
-    dp.add_handler(MessageHandler(Filters.regex('^(2020|2019|2018|2017|2016|2015 ou anterior)$'), Dados))
+    dp.add_handler(MessageHandler(Filters.regex('^(2020|2019|2018|2017|2016|2015 ou anterior)$'), Opcoes))
     dp.add_handler(MessageHandler(Filters.regex('^(Opção 1: Realiza Assistance|Opção 2: Europ Assistance)$'), operadora))
 
 
@@ -183,4 +197,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+
+    app.run(host='127.0.0.1', port=8080, debug=True)
